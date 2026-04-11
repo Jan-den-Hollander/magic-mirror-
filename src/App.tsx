@@ -445,7 +445,8 @@ export default function App() {
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
+</AnimatePresence>
+      <GuidaSection accentColor="#c9a84c" />
     </div>
   );
 }
