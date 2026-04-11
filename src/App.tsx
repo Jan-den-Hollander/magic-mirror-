@@ -240,6 +240,13 @@ export default function App() {
             className="font-serif text-3xl font-light tracking-widest text-[#7ab4e8] drop-shadow-[0_0_20px_rgba(74,122,181,0.4)]">
             Specchio English
           </motion.h1>
+          <a
+  href="#guida"
+  className="text-[0.55rem] tracking-[0.15em] uppercase opacity-40 hover:opacity-80 transition-opacity mt-1 block"
+  style={{ color: 'inherit' }}
+>
+  Come iniziare · Hoe te beginnen · How to start ↓
+</a>
           <p className="text-[0.6rem] tracking-[0.2em] uppercase text-[#4a7ab5]/50 mt-1">Il tuo partner britannico · Your British partner</p>
         </header>
 
