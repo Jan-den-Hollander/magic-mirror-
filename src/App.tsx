@@ -423,6 +423,18 @@ export default function App() {
         )}
       </AnimatePresence>
       <GuidaSection accentColor="#4a7ab5" />
+      <div style={{
+  textAlign: 'center',
+  padding: '1.5rem 1rem 2rem',
+  fontSize: '0.72rem',
+  lineHeight: 1.8,
+  color: 'white',
+  opacity: 0.85,
+}}>
+  🇮🇹 Questa app è gratuita. Se la usi spesso, ti consigliamo di creare la tua chiave API personale — è facile e gratuita su aistudio.google.com.<br /><br />
+  🇳🇱 Deze app is gratis. Gebruik je hem regelmatig, maak dan je eigen API-sleutel aan — eenvoudig en gratis via aistudio.google.com.<br /><br />
+  🇬🇧 This app is free to use. If you use it regularly, we recommend creating your own API key — quick and free at aistudio.google.com.
+</div>
     </div>
   );
 }
