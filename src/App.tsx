@@ -19,26 +19,9 @@ interface Message {
   heard?: string;
 }
 
-const PERSONAS = [
-  {
-    id: 'victoria', name: 'Victoria', title: 'Lady of Oxford', flag: '🎓', accent: 'Oxford',
-    systemPrompt: `You are Victoria, a refined Oxford lady speaking impeccable Queen's English. You help Italian speakers practise British English through mirror conversation and shadowing.
-RULES: ONE short British English sentence per turn (max 12 words). Always end with a question. Always use British spelling (colour, behaviour, organise, whilst, amongst, favour). Use expressions like "Quite", "Indeed", "Splendid", "Rather". Gently correct errors with ✏️ You might say: [correction] on a new line inside "en".
-RESPOND ONLY with valid JSON: {"en":"English sentence","it":"Italian translation","ph":"phonetic hint"}`,
-  },
-  {
-    id: 'james', name: 'James', title: 'London Gentleman', flag: '🎩', accent: 'London RP',
-    systemPrompt: `You are James, a warm London gentleman speaking proper British English. You help Italian speakers practise British English through mirror conversation and shadowing.
-RULES: ONE short British English sentence per turn (max 12 words). Always end with a question. Always use British spelling (colour, honour, travelling, programme, realise). Use expressions like "Brilliant", "Cheers", "Lovely", "Jolly good". Gently correct errors with ✏️ Nearly! We'd say: [correction] on a new line inside "en".
-RESPOND ONLY with valid JSON: {"en":"English sentence","it":"Italian translation","ph":"phonetic hint"}`,
-  },
-  {
-    id: 'eleanor', name: 'Eleanor', title: 'Edinburgh Scholar', flag: '📚', accent: 'Edinburgh',
-    systemPrompt: `You are Eleanor, a warm Edinburgh academic speaking educated Scottish-British English. You help Italian speakers practise British English through mirror conversation and shadowing.
-RULES: ONE short British English sentence per turn (max 12 words). Always end with a question. Always use British spelling. Occasionally say "Aye", "Grand", "Wee", "Brilliant". Gently correct errors with ✏️ In English we say: [correction] on a new line inside "en".
-RESPOND ONLY with valid JSON: {"en":"English sentence","it":"Italian translation","ph":"phonetic hint"}`,
-  },
-];
+const SYSTEM_PROMPT = `You are Victoria, a refined Oxford lady speaking impeccable Queen's English. You help Italian speakers practise British English through mirror conversation and shadowing.
+RULES: ONE short British English sentence per turn (max 12 words). Always end with a question. Always use British spelling (colour, behaviour, organise, whilst, amongst, favour). Use expressions like "Quite", "Indeed", "Splendid", "Rather", "I daresay". Gently correct errors with ✏️ You might say: [correction] on a new line inside "en".
+RESPOND ONLY with valid JSON: {"en":"English sentence","it":"Italian translation","ph":"phonetic hint"}`;
 
 export default function App() {
   const [isCamOn, setIsCamOn] = useState(false);
@@ -52,10 +35,8 @@ export default function App() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [customKey, setCustomKey] = useState(localStorage.getItem('specchio_english_api_key') || '');
-  const [personaIndex, setPersonaIndex] = useState(0);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
-  const persona = PERSONAS[personaIndex];
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -121,7 +102,7 @@ export default function App() {
       const aiInstance = getAI();
       const response = await aiInstance.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: `Say clearly in British English (RP accent): ${text}` }] }],
+        contents: [{ parts: [{ text: `Say clearly in British English (Oxford RP accent): ${text}` }] }],
         config: { responseModalities: [Modality.AUDIO] },
       });
       const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
@@ -197,7 +178,7 @@ export default function App() {
   const generateAIResponse = async (history: Message[]) => {
     setIsThinking(true);
     setStatus('The mirror thinks... · Lo specchio pensa...');
-    const systemPrompt = `${persona.systemPrompt}\nLevel: ${level}. Current Topic: ${topic}.`;
+    const systemPrompt = `${SYSTEM_PROMPT}\nLevel: ${level}. Current Topic: ${topic}.`;
     const contents = history.map(m => ({
       role: m.role === 'user' ? 'user' : 'model',
       parts: [{ text: m.role === 'user' ? m.en : JSON.stringify({ en: m.en, it: m.it, ph: m.ph }) }]
@@ -206,7 +187,7 @@ export default function App() {
       const aiInstance = getAI();
       const response = await aiInstance.models.generateContent({
         model: "gemini-2.5-flash",
-        contents: contents.length > 0 ? contents : [{ role: 'user', parts: [{ text: 'Start the conversation with a warm British greeting and one opening question.' }] }],
+        contents: contents.length > 0 ? contents : [{ role: 'user', parts: [{ text: 'Start the conversation with a warm Oxford greeting and one opening question.' }] }],
         config: { systemInstruction: systemPrompt, responseMimeType: "application/json" },
       });
       const data = JSON.parse(response.text || "{}");
@@ -224,7 +205,7 @@ export default function App() {
 
   const downloadTranscript = () => {
     if (!messages.length) return;
-    const text = messages.map(m => `[${m.role === 'user' ? 'YOU' : persona.name.toUpperCase()}]\nEN: ${m.en}\nIT: ${m.it || '-'}\n`).join('\n---\n\n');
+    const text = messages.map(m => `[${m.role === 'user' ? 'YOU' : 'VICTORIA'}]\nEN: ${m.en}\nIT: ${m.it || '-'}\n`).join('\n---\n\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
     a.download = 'conversation-english.txt';
@@ -240,28 +221,19 @@ export default function App() {
             className="font-serif text-3xl font-light tracking-widest text-[#7ab4e8] drop-shadow-[0_0_20px_rgba(74,122,181,0.4)]">
             Specchio English
           </motion.h1>
-          <a
-  href="#guida"
-  className="text-[0.55rem] tracking-[0.15em] uppercase opacity-40 hover:opacity-80 transition-opacity mt-1 block"
-  style={{ color: 'inherit' }}
->
-  Come iniziare · Hoe te beginnen · How to start ↓
-</a>
-          <p className="text-[0.6rem] tracking-[0.2em] uppercase text-[#4a7ab5]/50 mt-1">Il tuo partner britannico · Your British partner</p>
+          <a href="#guida"
+            className="text-[0.55rem] tracking-[0.15em] uppercase opacity-40 hover:opacity-80 transition-opacity mt-1 block"
+            style={{ color: 'inherit' }}>
+            Come iniziare · Hoe te beginnen · How to start ↓
+          </a>
+          <p className="text-[0.6rem] tracking-[0.2em] uppercase text-[#4a7ab5]/50 mt-1">
+            Victoria · Lady of Oxford · Queen's English
+          </p>
         </header>
 
-        <div className="flex gap-2 mb-5 justify-center">
-          {PERSONAS.map((p, idx) => (
-            <button key={p.id} type="button" onClick={() => setPersonaIndex(idx)}
-              className={`flex flex-col items-center px-3 py-1.5 rounded-xl border text-[0.6rem] tracking-widest uppercase transition-all ${personaIndex === idx ? 'border-[#7ab4e8]/60 bg-[#7ab4e8]/10 text-[#7ab4e8]' : 'border-[#4a7ab5]/15 bg-transparent text-[#4a7ab5]/50'}`}>
-              <span className="text-base mb-0.5">{p.flag}</span>
-              <span>{p.name}</span>
-              <span className="text-[0.45rem] opacity-60">{p.accent}</span>
-            </button>
-          ))}
-        </div>
-
+        {/* Mirror + Flanking Flags */}
         <div className="relative flex items-center justify-center mb-5">
+
           {showFlags && (
             <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }}
               className="flex flex-col items-center gap-1 mr-5 select-none">
@@ -312,6 +284,7 @@ export default function App() {
           )}
         </div>
 
+        {/* Settings */}
         <div className="grid grid-cols-2 gap-2 mb-4">
           <div className="space-y-1">
             <label className="text-[0.55rem] uppercase tracking-widest text-[#4a7ab5]/50 ml-1 flex items-center gap-1"><Settings size={8} /> Level · Livello</label>
@@ -338,6 +311,7 @@ export default function App() {
           </div>
         </div>
 
+        {/* Action Row */}
         <div className="flex items-center justify-center gap-6 mb-2">
           <div className="flex flex-col items-center gap-1">
             <button type="button" onClick={() => messages.length > 0 && speakIt(messages[messages.length-1].en)}
@@ -370,6 +344,7 @@ export default function App() {
           <p className="text-[0.65rem] text-[#7ab4e8]/60 min-h-[1em] italic font-medium">{status}</p>
         </div>
 
+        {/* Chat */}
         <div className="w-full h-[35vh] min-h-[250px] bg-black/30 border border-[#4a7ab5]/10 rounded-xl overflow-y-auto p-3 space-y-3 scrollbar-thin mb-4">
           {messages.map((msg, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
@@ -403,6 +378,7 @@ export default function App() {
           <div ref={chatEndRef} />
         </div>
 
+        {/* Bottom */}
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between border-b border-[#4a7ab5]/10 pb-3">
             <div className="flex items-center gap-1.5 text-[#4a7ab5]/60 text-[0.6rem] uppercase tracking-widest"><Trophy size={12} /> Score · Punteggio</div>
@@ -435,7 +411,7 @@ export default function App() {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-[#12122a] border border-[#4a7ab5]/30 p-6 rounded-2xl w-full max-w-xs shadow-2xl">
               <h2 className="font-serif text-xl text-[#7ab4e8] mb-1 text-center">Gemini API Key</h2>
-              <p className="text-[0.6rem] text-[#4a7ab5]/60 text-center mb-3">Same key as Zauberspiegel · Stessa chiave</p>
+              <p className="text-[0.6rem] text-[#4a7ab5]/60 text-center mb-3">Separate key from Zauberspiegel · Chiave separata</p>
               <input type="password" defaultValue={customKey} id="keyInput" className="w-full bg-black/40 border border-[#4a7ab5]/20 rounded-lg px-4 py-2.5 text-sm mb-4 outline-none text-white" />
               <div className="flex gap-2">
                 <button onClick={() => setShowKeyModal(false)} className="flex-1 py-2 text-xs text-[#4a7ab5]/50 border border-transparent rounded-lg">Cancel</button>
@@ -445,8 +421,8 @@ export default function App() {
             </motion.div>
           </motion.div>
         )}
-</AnimatePresence>
-      <GuidaSection accentColor="#c9a84c" />
+      </AnimatePresence>
+      <GuidaSection accentColor="#4a7ab5" />
     </div>
   );
 }
