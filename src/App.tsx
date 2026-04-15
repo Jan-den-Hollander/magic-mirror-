@@ -14,14 +14,15 @@ interface Message {
   role: 'user' | 'model';
   en: string;
   it: string;
-  ph?: string;
+  // ✅ FIX 1: 'ph' (fonetiek) verwijderd uit het Message type
   score?: number;
   heard?: string;
 }
 
+// ✅ FIX 2: 'ph' verwijderd uit het JSON-formaat in de systeemprompt
 const SYSTEM_PROMPT = `You are Victoria, a refined Oxford lady speaking impeccable Queen's English. You help Italian speakers practise British English through mirror conversation and shadowing.
 RULES: ONE short British English sentence per turn (max 12 words). Always end with a question. Always use British spelling (colour, behaviour, organise, whilst, amongst, favour). Use expressions like "Quite", "Indeed", "Splendid", "Rather", "I daresay". Gently correct errors with ✏️ You might say: [correction] on a new line inside "en".
-RESPOND ONLY with valid JSON: {"en":"English sentence","it":"Italian translation","ph":"phonetic hint"}`;
+RESPOND ONLY with valid JSON, no explanation or Markdown: {"en":"English sentence","it":"Italian translation"}`;
 
 export default function App() {
   const [isCamOn, setIsCamOn] = useState(false);
@@ -68,6 +69,16 @@ export default function App() {
     prevMessagesLength.current = messages.length;
   }, [messages.length, isThinking]);
 
+  // ✅ FIX 3: Hulpfunctie voor Safari — AudioContext initialiseren of hervatten
+  // tijdens een directe gebruikersklik, zodat audio ook na een AI-wachttijd werkt.
+  const ensureAudioContext = () => {
+    if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+      audioContextRef.current.resume();
+    } else if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+  };
+
   const toggleCam = async () => {
     if (isCamOn) {
       streamRef.current?.getTracks().forEach(t => t.stop());
@@ -77,7 +88,7 @@ export default function App() {
       setStatus('Mirror off · Specchio spento');
     } else {
       try {
-        setStatus('Avvio fotocamera...');
+        setStatus('Starting camera...');
         if (!navigator.mediaDevices?.getUserMedia) throw new Error("No camera support");
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         if (videoRef.current) {
@@ -88,12 +99,14 @@ export default function App() {
         setIsCamOn(true);
         setStatus('Mirror active! ✨ · Specchio attivo!');
       } catch {
-        setStatus('Accesso alla fotocamera negato.');
+        setStatus('Camera access denied · Accesso negato');
         setIsCamOn(false);
       }
     }
   };
 
+  // ✅ FIX 4: Engelse instructietekst verwijderd — alleen de tekst zelf meegeven.
+  // ✅ FIX 5: speechConfig met Britse stem (Puck) toegevoegd.
   const speakIt = async (text: string) => {
     if (!text) return;
     setIsSpeaking(true);
@@ -102,8 +115,15 @@ export default function App() {
       const aiInstance = getAI();
       const response = await aiInstance.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: `Say clearly in British English (Oxford RP accent): ${text}` }] }],
-        config: { responseModalities: [Modality.AUDIO] },
+        contents: [{ parts: [{ text }] }],
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: "Puck" }
+            }
+          }
+        },
       });
       const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       if (base64Audio) {
@@ -133,7 +153,9 @@ export default function App() {
     }
   };
 
+  // ✅ FIX 6: ensureAudioContext() aangeroepen bij de microfoonklik (Safari-fix)
   const startRecording = () => {
+    ensureAudioContext();
     try {
       const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (!SR) { setStatus('Speech recognition not supported'); return; }
@@ -145,10 +167,10 @@ export default function App() {
       recognitionRef.current.interimResults = false;
       recognitionRef.current.onstart = () => { setIsRecording(true); setStatus('Listening... · Ascolto...'); };
       recognitionRef.current.onresult = (e: any) => { setIsRecording(false); processHeard(e.results[0][0].transcript); };
-      recognitionRef.current.onerror = () => { setIsRecording(false); setStatus('Errore microfono.'); };
+      recognitionRef.current.onerror = () => { setIsRecording(false); setStatus('Microphone error.'); };
       recognitionRef.current.onend = () => setIsRecording(false);
       recognitionRef.current.start();
-    } catch { setStatus('Impossibile avviare il microfono.'); setIsRecording(false); }
+    } catch { setStatus('Could not start microphone.'); setIsRecording(false); }
   };
 
   const stopRecording = () => { recognitionRef.current?.stop(); setIsRecording(false); };
@@ -175,13 +197,14 @@ export default function App() {
     return 0.5;
   };
 
+  // ✅ FIX 7: 'ph' verwijderd uit de gespreksgeschiedenis en het opgeslagen bericht
   const generateAIResponse = async (history: Message[]) => {
     setIsThinking(true);
     setStatus('The mirror thinks... · Lo specchio pensa...');
     const systemPrompt = `${SYSTEM_PROMPT}\nLevel: ${level}. Current Topic: ${topic}.`;
     const contents = history.map(m => ({
       role: m.role === 'user' ? 'user' : 'model',
-      parts: [{ text: m.role === 'user' ? m.en : JSON.stringify({ en: m.en, it: m.it, ph: m.ph }) }]
+      parts: [{ text: m.role === 'user' ? m.en : JSON.stringify({ en: m.en, it: m.it }) }]
     }));
     try {
       const aiInstance = getAI();
@@ -191,7 +214,8 @@ export default function App() {
         config: { systemInstruction: systemPrompt, responseMimeType: "application/json" },
       });
       const data = JSON.parse(response.text || "{}");
-      const aiMsg: Message = { role: 'model', en: data.en || "How delightful! Shall we continue?", it: data.it || "", ph: data.ph || "" };
+      // ✅ FIX 8: Geen 'ph' meer in het opgeslagen AI-bericht
+      const aiMsg: Message = { role: 'model', en: data.en || "How delightful! Shall we continue?", it: data.it || "" };
       setMessages(prev => [...prev, aiMsg]);
       setIsThinking(false);
       speakIt(aiMsg.en);
@@ -201,7 +225,13 @@ export default function App() {
     }
   };
 
-  const startNewConversation = () => { setMessages([]); setScore(0); generateAIResponse([]); };
+  // ✅ FIX 9: ensureAudioContext() ook aangeroepen bij "New Conversation" (Safari-fix)
+  const startNewConversation = () => {
+    ensureAudioContext();
+    setMessages([]);
+    setScore(0);
+    generateAIResponse([]);
+  };
 
   const downloadTranscript = () => {
     if (!messages.length) return;
@@ -351,9 +381,9 @@ export default function App() {
               <div className={`max-w-[90%] px-3 py-2 rounded-xl text-[0.8rem] leading-relaxed ${msg.role === 'user' ? 'bg-white/5 border border-white/10 rounded-br-none italic text-white/80' : 'bg-gradient-to-br from-[#4a7ab5]/10 to-[#4a7ab5]/5 border border-[#4a7ab5]/20 rounded-bl-none'}`}>
                 {msg.role === 'model' ? (
                   <>
+                    {/* ✅ FIX 10: Alleen Engelse zin + Italiaanse vertaling. Geen fonetiek meer. */}
                     <span className="font-serif italic text-base text-[#7ab4e8] block mb-0.5">{msg.en}</span>
                     <span className="text-[0.65rem] text-white/40 block leading-tight">{msg.it}</span>
-                    {msg.ph && <span className="text-[0.6rem] text-[#4a7ab5]/50 italic block mt-1">/{msg.ph}/</span>}
                   </>
                 ) : (
                   <>
@@ -411,7 +441,7 @@ export default function App() {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-[#12122a] border border-[#4a7ab5]/30 p-6 rounded-2xl w-full max-w-xs shadow-2xl">
               <h2 className="font-serif text-xl text-[#7ab4e8] mb-1 text-center">Gemini API Key</h2>
-              <p className="text-[0.6rem] text-[#4a7ab5]/60 text-center mb-3">Separate key from Zauberspiegel · Chiave separata</p>
+              <p className="text-[0.6rem] text-[#4a7ab5]/60 text-center mb-3">Separate key from other mirrors · Chiave separata</p>
               <input type="password" defaultValue={customKey} id="keyInput" className="w-full bg-black/40 border border-[#4a7ab5]/20 rounded-lg px-4 py-2.5 text-sm mb-4 outline-none text-white" />
               <div className="flex gap-2">
                 <button onClick={() => setShowKeyModal(false)} className="flex-1 py-2 text-xs text-[#4a7ab5]/50 border border-transparent rounded-lg">Cancel</button>
@@ -424,17 +454,17 @@ export default function App() {
       </AnimatePresence>
       <GuidaSection accentColor="#4a7ab5" />
       <div style={{
-  textAlign: 'center',
-  padding: '1.5rem 1rem 2rem',
-  fontSize: '0.72rem',
-  lineHeight: 1.8,
-  color: 'white',
-  opacity: 0.85,
-}}>
-  🇮🇹 Questa app è gratuita. Se la usi spesso, ti consigliamo di creare la tua chiave API personale — è facile e gratuita su aistudio.google.com.<br /><br />
-  🇳🇱 Deze app is gratis. Gebruik je hem regelmatig, maak dan je eigen API-sleutel aan — eenvoudig en gratis via aistudio.google.com.<br /><br />
-  🇬🇧 This app is free to use. If you use it regularly, we recommend creating your own API key — quick and free at aistudio.google.com.
-</div>
+        textAlign: 'center',
+        padding: '1.5rem 1rem 2rem',
+        fontSize: '0.72rem',
+        lineHeight: 1.8,
+        color: 'white',
+        opacity: 0.85,
+      }}>
+        🇮🇹 Questa app è gratuita. Se la usi spesso, ti consigliamo di creare la tua chiave API personale — è facile e gratuita su aistudio.google.com.<br /><br />
+        🇳🇱 Deze app is gratis. Gebruik je hem regelmatig, maak dan je eigen API-sleutel aan — eenvoudig en gratis via aistudio.google.com.<br /><br />
+        🇬🇧 This app is free to use. If you use it regularly, we recommend creating your own API key — quick and free at aistudio.google.com.
+      </div>
     </div>
   );
 }
